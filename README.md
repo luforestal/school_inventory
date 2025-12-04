@@ -1,14 +1,14 @@
-School Inventory – Interactive Tree Maps for Schools
+## School Inventory – Interactive Tree Maps for Schools
 
-This repository provides a lightweight Python tool to create interactive web maps of school tree inventories using:
+This repository provides a lightweight Python tool to generate interactive web maps of school tree inventories from simple input datasets:
 
-Excel inventory files
+📊 Excel inventory files
 
-School boundary shapefiles
+🗺️ School boundary shapefiles
 
-Photographs of individual trees
+📷 Photographs of individual trees
 
-The tool produces fully interactive maps where users can explore tree locations, species, tree size, canopy extent, and view photos directly on the map.
+The tool produces fully interactive maps that allow users to explore tree locations, species, size, canopy extent, and photographs directly from the map interface.
 
 It is designed to be:
 
@@ -17,38 +17,26 @@ It is designed to be:
 ✅ Fully open-source and customizable
 ✅ Suitable for education, citizen science, and urban forestry outreach
 
-Features
+## Features
 
-📍 Tree locations plotted using GPS coordinates
+- 📍 Tree locations plotted from GPS coordinates
+- 🌳 Symbol shapes and colors by genus for visual identification
+- 🌫 Canopy area visualization
+- 🏫 School boundary overlay (shapefile)
+- 📸 Photo pop-ups linked to individual trees by Tree Code
+- 🌐 Export of shareable interactive HTML maps
+- ☁️ Seamless execution in Google Colab with cloud-stored datasets
+- 
+## Typical Workflow
 
-🌳 Shapes and colors by genus for visual identification
+1. Prepare a ZIP package containing:
+   - Excel tree inventory file
+   - School boundary shapefile
+   - Tree photographs
+   - (Optional) school logo  
 
-🌫 Canopy area visualization
+2. Upload the ZIP package to **Google Drive**.
 
-🏫 School boundary overlay (shapefile)
-
-📸 Tree photo pop-ups linked by Tree Code
-
-🌐 Produces shareable interactive HTML maps
-
-☁️ Works seamlessly in Google Colab with cloud-stored datasets
-
-Typical Workflow
-
-Prepare a ZIP package containing:
-
-Excel tree inventory
-
-Boundary shapefile
-
-Tree photos
-
-Optional school logo
-
-Upload the ZIP file to Google Drive.
-
-Open the provided Google Colab notebook and run a single cell to:
-
-Download the data
-
-Generate the interactive school tree map
+3. Open the provided **Google Colab notebook** and run a single cell to:
+   - Download the input data  
+   - Automatically generate the interactive school tree map
