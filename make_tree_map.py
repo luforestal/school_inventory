@@ -56,7 +56,7 @@ def build_tree_map():
     # LOAD INVENTORY
     # =====================================================
 
-    df = pd.read_excel(excel_path)
+    df = pd.read_excel(excel_path, sheet_name="Trees")
     df = df.dropna(subset=["lat","lon"])
 
     center = [df.lat.mean(), df.lon.mean()]
@@ -189,3 +189,4 @@ def build_tree_map():
     print(f"📄 Output: {output_html}")
 
     return m
+
