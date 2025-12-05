@@ -1,89 +1,101 @@
+
 import pandas as pd
+import geopandas as gpd
 import folium
 import numpy as np
 from itertools import cycle
 from pathlib import Path
-import geopandas as gpd
+import base64
 
 
 # =====================================================
-# MAIN FUNCTION — GENERIC
+# MAIN FUNCTION
+# =====================================================
+
 def build_tree_map():
 
     """
     Build an interactive tree inventory map for ANY school dataset.
 
-    Expected folder structure (same directory as this script):
+    Expected folder structure:
 
     ├── <School Name> Tree Data.xlsx
     ├── Boundaries/
     │     └── Boundaries.shp
-    └── Photos/ (optional)
+    └── Photos/   (optional)
+          └── TreeCode.jpg / png ...
 
     Returns
     -------
     folium.Map
     """
 
+    # -------------------------------------------------
+    # BASE DIR
+    # -------------------------------------------------
     base_dir = Path(__file__).parent.resolve()
 
-    # =====================================================
-    # AUTO-DETECT INPUT FILES
-    # =====================================================
-
-    # Find Excel
+    # -------------------------------------------------
+    # FIND EXCEL
+    # -------------------------------------------------
     excel_files = list(base_dir.glob("*.xlsx"))
     if not excel_files:
         raise FileNotFoundError("❌ No Excel file found in folder.")
+
     excel_path = excel_files[0]
 
-    # Detect school name
     school_name = (
         excel_path.stem
-        .replace("Tree Data","")
-        .replace("tree data","")
+        .replace("Tree Data", "")
+        .replace("tree data", "")
         .strip()
     )
 
-    output_html = f"{school_name.replace(' ','_')}_tree_map.html"
+    OUTPUT_HTML = f"{school_name.replace(' ','_')}_tree_map.html"
 
-    # Boundary
+    # -------------------------------------------------
+    # BOUNDARY
+    # -------------------------------------------------
     boundary_path = base_dir / "Boundaries" / "Boundaries.shp"
     if not boundary_path.exists():
         raise FileNotFoundError("❌ Missing Boundaries/Boundaries.shp")
 
-    # =====================================================
+    # -------------------------------------------------
+    # PHOTOS
+    # -------------------------------------------------
+    photos_dir = base_dir / "Photos"
+
+    # -------------------------------------------------
     # LOAD INVENTORY
-    # =====================================================
+    # -------------------------------------------------
+    df_map = pd.read_excel(excel_path, sheet_name="Trees")
+    df_map = df_map.dropna(subset=["lat", "lon"])
 
-    df = pd.read_excel(excel_path, sheet_name="Trees")
-    df = df.dropna(subset=["lat","lon"])
+    center = [df_map["lat"].mean(), df_map["lon"].mean()]
 
-    center = [df.lat.mean(), df.lon.mean()]
-
-    # =====================================================
+    # -------------------------------------------------
     # BASE MAP
-    # =====================================================
-
-    m = folium.Map(center,
-                   zoom_start=18,
-                   tiles="OpenStreetMap",
-                   name="OSM")
+    # -------------------------------------------------
+    m = folium.Map(
+        location=center,
+        zoom_start=18,
+        tiles="OpenStreetMap",
+        name="OSM"
+    )
 
     folium.TileLayer("CartoDB positron").add_to(m)
 
     folium.TileLayer(
         "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{x}/{y}",
-        attr="Esri World Imagery",
+        attr="ESRI World Imagery",
         name="Satellite",
         overlay=False,
-        control=True
+        control=True,
     ).add_to(m)
 
-    # =====================================================
+    # -------------------------------------------------
     # SCHOOL BOUNDARY
-    # =====================================================
-
+    # -------------------------------------------------
     gdf = gpd.read_file(boundary_path)
 
     if gdf.crs is None:
@@ -94,99 +106,150 @@ def build_tree_map():
     folium.GeoJson(
         gdf,
         name="School boundary",
-        style_function=lambda x:{
-            "color":"black",
-            "weight":1,
-            "fillColor":"none",
-            "fillOpacity":0
+        style_function=lambda x: {
+            "color": "black",
+            "weight": 1,
+            "fillColor": "none",
+            "fillOpacity": 0,
         }
     ).add_to(m)
 
-    # =====================================================
+    # -------------------------------------------------
     # GENUS STYLES
-    # =====================================================
-
-    genera = sorted(df["Genus"].dropna().unique())
+    # -------------------------------------------------
+    genera = sorted(df_map["Genus"].dropna().unique())
 
     shape_specs = [
-        {"sides":3,"rotation":0},
-        {"sides":4,"rotation":45},
-        {"sides":5,"rotation":0},
-        {"sides":6,"rotation":0},
-        {"sides":8,"rotation":0},
-        {"sides":3,"rotation":180},
-        {"sides":4,"rotation":0},
+        {"sides": 3, "rotation": 0},
+        {"sides": 4, "rotation": 45},
+        {"sides": 5, "rotation": 0},
+        {"sides": 6, "rotation": 0},
+        {"sides": 8, "rotation": 0},
+        {"sides": 3, "rotation": 180},
+        {"sides": 4, "rotation": 0},
     ]
 
     colors = [
-        "red","blue","green","purple","orange",
-        "darkred","darkblue","darkgreen","cadetblue",
-        "pink","black","gray"
+        "red", "blue", "green", "purple", "orange",
+        "darkred", "darkblue", "darkgreen",
+        "cadetblue", "pink", "black", "gray",
     ]
 
     shapes = cycle(shape_specs)
     cols = cycle(colors)
 
     genus_styles = {
-        g:{"shape":next(shapes),"color":next(cols)}
+        g: {"shape": next(shapes), "color": next(cols)}
         for g in genera
     }
 
-    # =====================================================
-    # PLOT TREES
-    # =====================================================
+    # =================================================
+    # ADD TREES — ORIGINAL BLOCK RESTORED ✅
+    # =================================================
 
-    for _, r in df.iterrows():
+    for _, r in df_map.iterrows():
 
-        style = genus_styles.get(
-            r.Genus,
-            {"shape":{"sides":4,"rotation":0},"color":"gray"}
-        )
+        lat, lon = float(r["lat"]), float(r["lon"])
+        genus = r.get("Genus", "NA")
+        tree_code = str(r.get("TreeCode", "")).strip()
 
-        # ----- CANOPY -----
-        radius = None
-        if pd.notna(r.CrownNSm) and pd.notna(r.CrownEWm):
-            radius = (r.CrownNSm + r.CrownEWm) / 4
+        style = genus_styles.get(genus)
 
-        if radius:
+        # -------- CANOPY SIZE --------
+        ns = r.get("CrownNSm", np.nan)
+        ew = r.get("CrownEWm", np.nan)
+
+        crown_radius = None
+        if pd.notna(ns) and pd.notna(ew):
+            crown_radius = (ns + ew) / 4
+        elif pd.notna(ns):
+            crown_radius = ns / 2
+        elif pd.notna(ew):
+            crown_radius = ew / 2
+
+        if crown_radius:
             folium.Circle(
-                [r.lat,r.lon],
-                radius=radius,
+                location=[lat, lon],
+                radius=crown_radius,
                 fill=True,
                 fill_opacity=0.3,
                 color=None,
-                stroke=False
+                stroke=False,
             ).add_to(m)
 
-        popup = f"""
-        <b>Tree code:</b> {r.TreeCode}<br>
-        <b>Genus:</b> {r.Genus}<br>
-        <b>Species:</b> {r.Species}<br>
-        <b>DBH (cm):</b> {r.DBH1cm}<br>
-        <b>Height (m):</b> {r.Heightm}
+        # -------- PHOTO LOOKUP --------
+        photo_html = ""
+
+        if tree_code and photos_dir.exists():
+
+            code = tree_code.lower()
+
+            matches = [
+                p for p in photos_dir.iterdir()
+                if code in p.stem.lower()
+                and p.suffix.lower() in [".jpg", ".jpeg", ".png"]
+            ]
+
+            if matches:
+                img_path = matches[0]
+
+                with open(img_path, "rb") as f:
+                    encoded = base64.b64encode(f.read()).decode("utf-8")
+
+                ext = img_path.suffix.lower().replace(".", "")
+                if ext == "jpg":
+                    ext = "jpeg"
+
+                photo_html = f"""
+                <br>
+                <img src="data:image/{ext};base64,{encoded}"
+                     width="200"
+                     style="border-radius:8px;margin-top:6px;">
+                """
+            else:
+                photo_html = "<br><i>No photo available</i>"
+
+        # -------- POPUP --------
+        popup_html = f"""
+        <div style="font-size:13px;">
+            <b>Tree code:</b> {tree_code}<br>
+            <b>Genus:</b> {r.get('Genus','')}<br>
+            <b>Species:</b> {r.get('Species','')}<br>
+            <b>DBH (cm):</b> {r.get('DBH1cm','')}<br>
+            <b>Height (m):</b> {r.get('Heightm','')}
+            {photo_html}
+        </div>
         """
 
+        popup = folium.Popup(popup_html, max_width=300)
+
+        # -------- MARKERS --------
+        if style:
+            shape = style["shape"]
+            color = style["color"]
+        else:
+            shape = {"sides": 4, "rotation": 0}
+            color = "gray"
+
         folium.RegularPolygonMarker(
-            [r.lat,r.lon],
-            number_of_sides=style["shape"]["sides"],
-            rotation=style["shape"]["rotation"],
+            location=[lat, lon],
+            number_of_sides=shape["sides"],
+            rotation=shape["rotation"],
             radius=7,
-            color=style["color"],
-            popup=popup,
+            color=color,
             fill=True,
-            fill_opacity=0.9
+            fill_opacity=0.9,
+            popup=popup,
         ).add_to(m)
 
+    # =================================================
+    # FINALIZE
+    # =================================================
     folium.LayerControl().add_to(m)
 
-    # =====================================================
-    # SAVE MAP
-    # =====================================================
-
-    m.save(base_dir / output_html)
+    m.save(base_dir / OUTPUT_HTML)
 
     print(f"✅ Map created for: {school_name}")
-    print(f"📄 Output: {output_html}")
+    print(f"📄 Output: {OUTPUT_HTML}")
 
     return m
-
